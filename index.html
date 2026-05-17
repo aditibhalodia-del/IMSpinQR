@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>IMS Gujarat · Attendance Scanner</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e8eaf0;min-height:100vh;overflow-x:hidden}
+
+/* ── SHARED ── */
+.screen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem 1.5rem;gap:14px}
+.screen.active{display:flex}
+.badge{font-size:11px;letter-spacing:.12em;color:#c9a227;text-transform:uppercase;font-weight:700}
+.stitle{font-size:22px;font-weight:700;text-align:center}
+.ssub{font-size:13px;color:#7a7f96;text-align:center;line-height:1.5}
+.card{background:#1a1d27;border:1px solid #252c44;border-radius:14px;padding:1.25rem 1.5rem;width:100%;max-width:390px;display:flex;flex-direction:column;gap:18px}
+label{font-size:11px;color:#7a7f96;text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px;display:block;font-weight:600}
+input[type=text],input[type=password]{width:100%;background:#0f1117;border:1.5px solid #252c44;border-radius:8px;color:#e8eaf0;font-size:15px;font-family:inherit;padding:11px 14px;outline:none}
+input:focus{border-color:#c9a227}
+input::placeholder{color:#444}
+.pbtn{width:100%;max-width:390px;background:#c9a227;color:#0f1117;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer}
+.pbtn:active{opacity:.85}
+.sbtn{width:100%;max-width:390px;background:#1a1d27;border:1px solid #252c44;color:#7a7f96;border-radius:10px;padding:11px;font-size:13px;font-family:inherit;cursor:pointer}
+.errmsg{color:#e74c3c;font-size:13px;text-align:center;min-height:18px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.chip{background:#0f1117;border:1.5px solid #252c44;border-radius:20px;padding:6px 14px;font-size:12px;color:#7a7f96;cursor:pointer;font-family:inherit;transition:all .15s}
+.chip.on{background:#c9a2271a;border-color:#c9a227;color:#c9a227;font-weight:600}
+
+/* ── SCANNER SCREEN ── */
+#SC{display:none;flex-direction:column;height:100dvh;overflow:hidden}
+#SC.active{display:flex}
+
+.topbar{background:#1a1d27;border-bottom:1px solid #252c44;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.tsn{font-size:13px;font-weight:700;color:#c9a227}
+.tmeta{font-size:11px;color:#7a7f96;margin-top:1px}
+.cbadge{background:#252c44;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;color:#e8eaf0}
+.xbtn{width:30px;height:30px;border-radius:50%;background:#252c44;border:none;cursor:pointer;color:#7a7f96;font-size:13px}
+
+/* ── CAMERA AREA ── */
+.camarea{position:relative;width:100%;flex-shrink:0;background:#000;overflow:hidden}
+
+/* html5-qrcode renders a video+canvas inside #qr-reader.
+   We hide its default UI chrome and keep only the video feed. */
+#qr-reader{width:100%!important;height:100%!important;border:none!important}
+#qr-reader video{width:100%!important;height:100%!important;object-fit:cover!important;display:block!important}
+/* Hide the library's built-in scan box overlay and buttons */
+#qr-reader img{display:none!important}
+#qr-reader__scan_region{border:none!important;box-shadow:none!important}
+#qr-reader__dashboard{display:none!important}
+#qr-reader__header_message{display:none!important}
+
+/* Our overlay sits on top */
+.vf-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.vf{width:62%;aspect-ratio:1;position:relative}
+.cr{position:absolute;width:22px;height:22px;border-color:#c9a227;border-style:solid}
+.cr.tl{top:0;left:0;border-width:3px 0 0 3px;border-radius:4px 0 0 0}
+.cr.tr{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 4px 0 0}
+.cr.bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 4px}
+.cr.br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 4px 0}
+.scanbar{position:absolute;left:4px;right:4px;height:2px;background:linear-gradient(90deg,transparent,#c9a227,transparent);animation:sweep 2s ease-in-out infinite;opacity:0}
+.scanbar.go{opacity:1}
+@keyframes sweep{0%{top:4px}100%{top:calc(100% - 6px)}}
+.vfhint{margin-top:14px;font-size:11px;color:rgba(255,255,255,.45);text-align:center}
+.flash{position:absolute;inset:0;background:rgba(201,162,39,.35);opacity:0;pointer-events:none;transition:opacity .07s}
+.flash.on{opacity:1}
+
+.cambtn-wrap{padding:12px 14px;flex-shrink:0}
+#cambtn{width:100%;background:#c9a227;color:#0f1117;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer}
+#cambtn.stop{background:#1a1d27;border:1.5px solid #e74c3c;color:#e74c3c}
+
+/* ── LOG ── */
+.logsec{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.loghdr{padding:8px 14px 5px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#444;font-weight:700;border-top:1px solid #252c44;flex-shrink:0}
+.loglist{flex:1;overflow-y:auto;padding:0 10px 6px;display:flex;flex-direction:column;gap:5px}
+.logitem{background:#1a1d27;border-radius:8px;padding:8px 11px;display:flex;align-items:center;gap:9px;animation:si .2s ease;flex-shrink:0}
+@keyframes si{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+.lnum{font-size:11px;color:#444;min-width:18px;font-family:monospace}
+.lname{font-size:13px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lbatch{font-size:10px;color:#c9a227;font-weight:700;flex-shrink:0}
+.ltime{font-size:10px;color:#444;font-family:monospace;flex-shrink:0}
+.lempty{text-align:center;color:#333;font-size:13px;padding:20px}
+
+.btmbar{padding:6px 10px 18px;display:flex;gap:8px;flex-shrink:0}
+.gbtn{flex:1;background:#1a1d27;border:1px solid #252c44;color:#555;border-radius:8px;padding:9px;font-size:12px;font-family:inherit;cursor:pointer}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:0;left:0;right:0;z-index:999;padding:0 12px 18px;transform:translateY(115%);transition:transform .25s cubic-bezier(.4,0,.2,1);pointer-events:none}
+.toast.show{transform:translateY(0)}
+.toastin{border-radius:12px;padding:13px 15px;display:flex;align-items:center;gap:11px}
+.toastin.success{background:#0a2016;border:1px solid #1a5530}
+.toastin.dupe{background:#1f1a06;border:1px solid #4a4010}
+.toastin.error{background:#200a0a;border:1px solid #501515}
+.tdot{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.tdot.success{background:#27ae60}
+.tdot.dupe{background:#e67e22}
+.tdot.error{background:#e74c3c}
+.tname{font-size:14px;font-weight:700;color:#e8eaf0}
+.tdetail{font-size:12px;color:#7a7f96;margin-top:1px}
+.sdot{width:7px;height:7px;border-radius:50%;background:#333;display:inline-block;margin-left:5px;vertical-align:middle;transition:background .3s}
+.sdot.ok{background:#27ae60}
+.sdot.err{background:#e74c3c}
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN ── -->
+<div class="screen active" id="login-screen">
+  <div class="badge">IMS Gujarat</div>
+  <div style="font-size:40px;margin:4px 0">🔒</div>
+  <div class="stitle">Faculty Login</div>
+  <div class="ssub">Authorised access only</div>
+  <div class="card">
+    <div><label>User ID</label><input id="lid" type="text" placeholder="Enter ID" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+    <div><label>Password</label><input id="lpw" type="password" placeholder="Enter Password" autocomplete="off"></div>
+  </div>
+  <div class="errmsg" id="lerr"></div>
+  <button class="pbtn" onclick="doLogin()">Login →</button>
+</div>
+
+<!-- ── SESSION ── -->
+<div class="screen" id="session-screen">
+  <div class="badge">IMS Gujarat</div>
+  <div class="stitle">Session Details</div>
+  <div class="ssub">What are you taking attendance for?</div>
+  <div class="card">
+    <div><label>Session Name</label><input id="sname" type="text" placeholder="e.g. Math Reboot 1" autocomplete="off"></div>
+    <div><label>Faculty Code</label><input id="fcode" type="text" placeholder="e.g. AB" maxlength="6" style="text-transform:uppercase" autocomplete="off"></div>
+    <div>
+      <label>Time Slot</label>
+      <div class="chips">
+        <div class="chip" onclick="pickChip(this,'Morning 7–9 AM')">Morning 7–9</div>
+        <div class="chip" onclick="pickChip(this,'Evening 4:30–6:30 PM')">Evening 4:30–6:30</div>
+        <div class="chip" onclick="pickChip(this,'SimCAT')">SimCAT</div>
+        <div class="chip" onclick="pickChip(this,'Special')">Special</div>
+      </div>
+    </div>
+  </div>
+  <div class="errmsg" id="serr"></div>
+  <button class="pbtn" onclick="goScan()">Start Scanning →</button>
+  <button class="sbtn" onclick="showScreen('login-screen')">← Back</button>
+</div>
+
+<!-- ── SCANNER ── -->
+<div id="SC">
+  <div class="topbar">
+    <div><div class="tsn" id="tsn">—</div><div class="tmeta" id="tmeta">—</div></div>
+    <div style="display:flex;align-items:center;gap:7px">
+      <div class="cbadge"><span id="cnt">0</span> present<span class="sdot" id="sdot"></span></div>
+      <button class="xbtn" onclick="endSession()">✕</button>
+    </div>
+  </div>
+
+  <div class="camarea" id="camarea">
+    <!-- html5-qrcode renders into this div -->
+    <div id="qr-reader"></div>
+    <!-- our overlay corners + scan bar -->
+    <div class="vf-overlay">
+      <div class="vf">
+        <div class="cr tl"></div><div class="cr tr"></div>
+        <div class="cr bl"></div><div class="cr br"></div>
+        <div class="scanbar" id="scanbar"></div>
+      </div>
+      <div class="vfhint" id="vfhint">Tap Start Camera · hold QR inside the frame</div>
+    </div>
+    <div class="flash" id="fl"></div>
+  </div>
+
+  <div class="cambtn-wrap">
+    <button id="cambtn" onclick="toggleCam()">▶ Start Camera</button>
+  </div>
+
+  <div class="logsec">
+    <div class="loghdr">Present this session</div>
+    <div class="loglist" id="ll"><div class="lempty">No scans yet</div></div>
+  </div>
+
+  <div class="btmbar">
+    <button class="gbtn" onclick="exportCSV()">↓ Export CSV</button>
+    <button class="gbtn" onclick="endSession()">⏹ End Session</button>
+  </div>
+</div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast">
+  <div class="toastin" id="toastin">
+    <div class="tdot" id="tdot">✓</div>
+    <div><div class="tname" id="tname">—</div><div class="tdetail" id="tdetail">—</div></div>
+  </div>
+</div>
+
+<script>
+const SHEET_URL  = 'https://script.google.com/macros/s/AKfycby6vtUR95Bd7by9JCF3JbOx0S2lDctBAGZG4HPNuL9R-FyeLv8WEVPVAgGSI2He8qUp3w/exec';
+const VALID_ID   = 'IMSahm';
+const VALID_PASS = 'IMS@ahm';
+
+let qrScanner = null;   // Html5Qrcode instance
+let camRunning = false;
+let scanned = {}, cooldowns = {}, scannedList = [], scanCount = 0;
+let sessName = '', facCode = '', slot = '';
+let toastT = null;
+
+/* ── INIT ── */
+window.addEventListener('load', () => {
+  const c = JSON.parse(localStorage.getItem('ims_cfg') || '{}');
+  if (c.fcode) document.getElementById('fcode').value = c.fcode;
+  sizeCam();
+  window.addEventListener('resize', sizeCam);
+  // Create the Html5Qrcode instance once (attached to the div)
+  qrScanner = new Html5Qrcode('qr-reader');
+});
+
+function sizeCam() {
+  const sz = Math.min(window.innerWidth, 520);
+  document.getElementById('camarea').style.height = sz + 'px';
+}
+
+/* ── SCREENS ── */
+function showScreen(id) {
+  ['login-screen', 'session-screen'].forEach(s => document.getElementById(s).classList.remove('active'));
+  document.getElementById('SC').style.display = 'none';
+  if (id === 'SC') {
+    document.getElementById('SC').style.display = 'flex';
+  } else {
+    document.getElementById(id).classList.add('active');
+  }
+}
+
+/* ── LOGIN ── */
+document.getElementById('lid').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('lpw').focus(); });
+document.getElementById('lpw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+function doLogin() {
+  const id = document.getElementById('lid').value.trim();
+  const pw = document.getElementById('lpw').value;
+  if (id === VALID_ID && pw === VALID_PASS) {
+    document.getElementById('lerr').textContent = '';
+    showScreen('session-screen');
+  } else {
+    document.getElementById('lerr').textContent = 'Incorrect ID or Password.';
+    document.getElementById('lpw').value = '';
+    document.getElementById('lpw').focus();
+  }
+}
+
+/* ── CHIPS ── */
+function pickChip(el, v) {
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+  slot = v;
+}
+
+/* ── START SESSION ── */
+function goScan() {
+  sessName = document.getElementById('sname').value.trim();
+  facCode = document.getElementById('fcode').value.trim().toUpperCase();
+  if (!sessName) { document.getElementById('serr').textContent = 'Please enter a session name.'; return; }
+  if (!facCode) { document.getElementById('serr').textContent = 'Please enter your faculty code.'; return; }
+  localStorage.setItem('ims_cfg', JSON.stringify({ fcode: facCode }));
+  scanned = {}; cooldowns = {}; scannedList = []; scanCount = 0;
+  document.getElementById('cnt').textContent = '0';
+  document.getElementById('sdot').className = 'sdot';
+  document.getElementById('ll').innerHTML = '<div class="lempty">No scans yet</div>';
+  document.getElementById('tsn').textContent = sessName;
+  const d = new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  document.getElementById('tmeta').textContent = facCode + (slot ? ' · ' + slot : '') + ' · ' + d;
+  showScreen('SC');
+}
+
+/* ── END SESSION ── */
+function endSession() {
+  stopCam().then(() => {
+    if (confirm('End session and return to setup?')) {
+      showScreen('session-screen');
+      document.getElementById('sname').value = '';
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+      slot = '';
+    }
+  });
+}
+
+/* ── CAMERA TOGGLE ── */
+async function toggleCam() {
+  if (camRunning) {
+    await stopCam();
+  } else {
+    await startCam();
+  }
+}
+
+async function startCam() {
+  try {
+    const config = {
+      fps: 10,               // 10 scans per second — reliable without hammering CPU
+      qrbox: (w, h) => {
+        // scan box = 70% of the shorter dimension
+        const s = Math.floor(Math.min(w, h) * 0.70);
+        return { width: s, height: s };
+      },
+      aspectRatio: 1.0,
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true } // uses native API where available
+    };
+
+    await qrScanner.start(
+      { facingMode: 'environment' },  // rear camera
+      config,
+      onScanSuccess,   // called when QR found
+      () => {}         // ignore per-frame errors (normal when no QR in view)
+    );
+
+    camRunning = true;
+    document.getElementById('cambtn').textContent = '⏹ Stop Camera';
+    document.getElementById('cambtn').classList.add('stop');
+    document.getElementById('scanbar').classList.add('go');
+    document.getElementById('vfhint').textContent = 'Hold student QR card inside the frame';
+
+  } catch (err) {
+    showToast('error', 'Camera Error', 'Allow camera access and refresh the page.');
+    console.error('Camera start error:', err);
+  }
+}
+
+async function stopCam() {
+  if (!camRunning) return;
+  try {
+    await qrScanner.stop();
+  } catch (e) { /* already stopped */ }
+  camRunning = false;
+  document.getElementById('cambtn').textContent = '▶ Start Camera';
+  document.getElementById('cambtn').classList.remove('stop');
+  document.getElementById('scanbar').classList.remove('go');
+  document.getElementById('vfhint').textContent = 'Tap Start Camera · hold QR inside the frame';
+}
+
+/* ── QR SUCCESS CALLBACK ── */
+function onScanSuccess(text) {
+  try {
+    const d = JSON.parse(text);
+    if (!d.pin || !d.name || !d.batch) return;
+
+    // Per-pin cooldown: 2.5s so the same QR card doesn't fire repeatedly
+    const now = Date.now();
+    if (cooldowns[d.pin] && now - cooldowns[d.pin] < 2500) return;
+    cooldowns[d.pin] = now;
+
+    handleScan(d);
+  } catch (e) { /* not our QR format */ }
+}
+
+/* ── HANDLE SCAN ── */
+function handleScan(d) {
+  doFlash();
+  if (scanned[d.pin]) {
+    showToast('dupe', 'Already Scanned', d.name + ' is already marked present.');
+    return;
+  }
+  scanned[d.pin] = true;
+  scanCount++;
+  document.getElementById('cnt').textContent = scanCount;
+
+  const now = new Date();
+  const time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const date = now.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const rec = { date, time, pin: d.pin, name: d.name, batch: d.batch, session: sessName, slot, faculty: facCode };
+
+  scannedList.push(rec);
+  addToLog(rec, scanCount);
+  showToast('success', '✓ Marked Present', d.name + ' · ' + d.batch);
+  postToSheet(rec);
+}
+
+function doFlash() {
+  const f = document.getElementById('fl');
+  f.classList.add('on');
+  setTimeout(() => f.classList.remove('on'), 180);
+}
+
+function addToLog(r, n) {
+  const ll = document.getElementById('ll');
+  const empty = ll.querySelector('.lempty');
+  if (empty) empty.remove();
+  const el = document.createElement('div');
+  el.className = 'logitem';
+  el.innerHTML = `<span class="lnum">${n}</span><span class="lname">${r.name}</span><span class="lbatch">${r.batch}</span><span class="ltime">${r.time}</span>`;
+  ll.insertBefore(el, ll.firstChild);
+}
+
+/* ── SHEET ── */
+function postToSheet(r) {
+  const dot = document.getElementById('sdot');
+  fetch(SHEET_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(r)
+  }).then(() => {
+    dot.className = 'sdot ok';
+    setTimeout(() => dot.className = 'sdot', 2500);
+  }).catch(() => {
+    dot.className = 'sdot err';
+  });
+}
+
+/* ── TOAST ── */
+function showToast(type, name, detail) {
+  clearTimeout(toastT);
+  document.getElementById('toastin').className = 'toastin ' + type;
+  document.getElementById('tdot').className = 'tdot ' + type;
+  document.getElementById('tdot').textContent = type === 'success' ? '✓' : type === 'dupe' ? '↩' : '✕';
+  document.getElementById('tname').textContent = name;
+  document.getElementById('tdetail').textContent = detail;
+  document.getElementById('toast').classList.add('show');
+  toastT = setTimeout(() => document.getElementById('toast').classList.remove('show'), 3200);
+}
+
+/* ── CSV EXPORT ── */
+function exportCSV() {
+  if (!scannedList.length) { alert('No scans to export yet.'); return; }
+  const h = ['Date', 'Time', 'IMS PIN', 'Name', 'Batch', 'Session Name', 'Slot', 'Faculty'];
+  const rows = scannedList.map(r => [r.date, r.time, r.pin, r.name, r.batch, r.session, r.slot || '', r.faculty]);
+  const csv = [h, ...rows].map(r => r.map(c => '"' + String(c || '').replace(/"/g, '""') + '"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'IMS_' + sessName.replace(/\s+/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+}
+</script>
+</body>
+</html>
