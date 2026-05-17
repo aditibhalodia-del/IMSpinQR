@@ -33,25 +33,25 @@
 </style>
 </head>
 <body>
-
+ 
 <div class="brand">
   <div class="brand-badge">IMS Gujarat</div>
   <h1>Your Attendance QR</h1>
   <p>Select your batch and name to get your personal QR card.</p>
 </div>
-
+ 
 <div class="card">
   <label for="batch-sel">Step 1 · Select your batch</label>
   <select id="batch-sel" onchange="onBatch()"><option value="">— pick your batch —</option></select>
 </div>
-
+ 
 <div class="card" id="name-wrap">
   <label for="name-sel">Step 2 · Select your name</label>
   <select id="name-sel" onchange="onName()"><option value="">— pick your name —</option></select>
 </div>
-
+ 
 <div id="empty-msg">No students found for this batch yet. Contact your mentor.</div>
-
+ 
 <div id="result">
   <div class="stu-header">
     <div class="avatar" id="avatar"></div>
@@ -64,9 +64,9 @@
   <div class="qr-wrap"><div class="qr-box" id="qr-box"></div></div>
   <button class="dl-btn" onclick="dlQR()">⬇ Download QR Card</button>
 </div>
-
+ 
 <div class="footer">IMS Gujarat · CAT 2026 Batches · Attendance System</div>
-
+ 
 <script>
 const DB = {
   "CAT 2601": [
@@ -1465,13 +1465,13 @@ const nSel=document.getElementById('name-sel');
 const nameWrap=document.getElementById('name-wrap');
 const emptyMsg=document.getElementById('empty-msg');
 const result=document.getElementById('result');
-
+ 
 Object.keys(DB).sort().forEach(b=>{
   const o=document.createElement('option');
   o.value=b;o.textContent=b;
   bSel.appendChild(o);
 });
-
+ 
 function onBatch(){
   const b=bSel.value;
   nameWrap.style.display='none';nameWrap.style.opacity='0';
@@ -1489,7 +1489,7 @@ function onBatch(){
   nameWrap.style.display='block';
   setTimeout(()=>nameWrap.style.opacity='1',10);
 }
-
+ 
 function onName(){
   const pin=nSel.value,b=bSel.value;
   result.style.display='none';
@@ -1507,7 +1507,7 @@ function onName(){
   result.style.display='block';
   result.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
-
+ 
 function dlQR(){
   const cnv=document.querySelector('#qr-box canvas');
   if(!cnv)return;
@@ -1542,3 +1542,4 @@ function dlQR(){
 </script>
 </body>
 </html>
+ 
